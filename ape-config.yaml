@@ -2,7 +2,7 @@ name: LayerZeroVyper
 dependencies:
   - name: SolidityExamples
     github: LayerZero-Labs/solidity-examples
-    branch: main
+    ref: main
     contracts_folder: contracts
 
 solidity:
