@@ -4,13 +4,7 @@ dependencies:
     github: LayerZero-Labs/solidity-examples
     ref: main
     contracts_folder: contracts
-  - name: OpenZeppelin
-    github: OpenZeppelin/openzeppelin-contracts
-    version: 4.9.2
-  - name: create-util
-    local: contracts/snekmate/lib/create-util
 
 solidity:
   import_remapping:
     - "@layerzero=SolidityExamples/main"
-    - "openzeppelin=OpenZeppelin/4.9.2"
