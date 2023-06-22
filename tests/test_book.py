@@ -20,6 +20,18 @@ def test_book_fill_order(maker, taker, tokens, book):
     assert tokens[1].Transfer(taker, maker, 20) in tx.events
     assert book.OrderFilled(maker, taker, tokens[0], 10, tokens[1], 20, 0) in tx.events
 
+def test_book_cannot_fill_cancelled_order(maker, taker, tokens, book):
+
+    book.add_order(tokens[0], 10, tokens[1], 20, sender=maker)
+    book.cancel_order(0, sender=maker)
+
+    # fill order
+    tokens[0].approve(book.address, 10, sender=maker)
+    tokens[1].approve(book.address, 20, sender=taker)
+
+    with ape.reverts("Order is not active"):
+        book.fill_order(0, sender=taker)
+
 def test_cannot_use_untrusted_book(maker, taker, tokens, books, book):
     tokenA, tokenB = tokens[:2]
     bookA = books[0]
@@ -54,6 +66,25 @@ def test_books(tokens, books, maker, taker):
 
     assert tokenA.balanceOf(maker) == maker_start_bal - 10
     assert tokenB.balanceOf(taker) == taker_start_bal - 20
+
+def test_books_cancel(tokens, books, maker, taker, turtle):
+
+    tokenA, tokenB = tokens[:2]
+    book_a, book_b = books
+
+    book_a.add_order(tokenA, 10, tokenB, 20, sender=maker)
+    book_a.cancel_order(0, sender=maker)
+
+    tokenB.approve(book_b.address, 20, sender=turtle)
+    tx = book_b.fill_order_on_book(0, book_a, sender=turtle)
+
+    assert tokenB.Transfer(turtle, book_b, 20) in tx.events
+    assert tokenB.Transfer(book_b, turtle, 20) in tx.events
+
+    assert book_b.RemoteOrderFillCandidate(book_a.address, 0) in tx.events
+    assert book_b.RemoteOrderFillCanceled(book_a.address, 0) in tx.events
+
+    tokenB.approve(book_b.address, 20, sender=turtle)
 
 def test_books_cancel_already_filled(tokens, books, maker, taker, turtle):
 
