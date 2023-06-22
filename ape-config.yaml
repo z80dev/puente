@@ -11,8 +11,15 @@ dependencies:
 plugins:
   - name: solidity
   - name: vyper
+  - name: foundry
 
 solidity:
   import_remapping:
     - "@layerzero=SolidityExamples/main"
     - "openzeppelin=OpenZeppelin/4.9.2"
+
+test:
+  coverage:
+    reports:
+      terminal:
+        verbose: true
