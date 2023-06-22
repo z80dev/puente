@@ -1,24 +1,38 @@
 counter: public(uint256)
+userCounter: public(HashMap[address, uint256])
+
+event Received:
+    _srcChainId: uint16
+    _srcAddress: Bytes[40]
+    parsedAddress: address
+    newVal: uint256
 
 @internal
 def _nonblockingLzReceive(_srcChainId: uint16, _srcAddress: Bytes[40], _nonce: uint64, _payload: Bytes[PAYLOAD_SIZE]):
     # contract body upon cross-chain call goes here
     # _abi_decode _payload for uint256 num to set to counter
-    newVal: uint256 = _abi_decode(_payload, (uint256))
+    assert self._isTrustedRemote(_srcChainId, _srcAddress), "NOTTRUSTED"
+    newVal: uint256 = 0
+    _sender: address = empty(address)
+    newVal, _sender = _abi_decode(_payload, (uint256, address))
+    # addr: address = _abi_decode(_srcAddress, (address))
+    addr: address = convert(slice(_srcAddress, 0, 20), address)
+    self.userCounter[_sender] = newVal
     self.counter = newVal
+    log Received(_srcChainId, _srcAddress, addr, newVal)
 
 # increment counter on other chain by calling _lzSend
 # argument to this fn is _dstChainId of type uint16
 @external
 @payable
 def incrementCounter(_dstChainId: uint16, newVal: uint256):
-    self._lzSend(_dstChainId, _abi_encode(newVal), msg.sender, empty(address), b"", msg.value)
+    self._lzSend(_dstChainId, _abi_encode(newVal, msg.sender), msg.sender, empty(address), b"", msg.value)
 
 ################################################################
 #                      LZAPP BOILERPLATE                       #
 ################################################################
 
-PAYLOAD_SIZE: constant(uint256) = 32
+PAYLOAD_SIZE: constant(uint256) = 1000
 CONFIG_SIZE: constant(uint256) = 512
 failedMessages: public(HashMap[uint16, HashMap[Bytes[40], HashMap[uint64, bytes32]]])
 
@@ -248,5 +262,11 @@ def setMinDstGas(_dstChainId: uint16, _packetType: uint16, _minGas: uint256):
 @external
 @view
 def isTrustedRemote(_srcChainId: uint16, _srcAddress: Bytes[40]) -> bool:
+    return self._isTrustedRemote(_srcChainId, _srcAddress)
+
+
+@internal
+@view
+def _isTrustedRemote(_srcChainId: uint16, _srcAddress: Bytes[40]) -> bool:
     trustedSource: Bytes[40] = self.trustedRemoteLookup[_srcChainId]
     return keccak256(trustedSource) == keccak256(_srcAddress)
