@@ -105,3 +105,16 @@ def test_books_cancel_already_filled(tokens, books, maker, taker, turtle):
 
     assert book_b.RemoteOrderFillCandidate(book_a.address, 0) in tx.events
     assert book_b.RemoteOrderFillCanceled(book_a.address, 0) in tx.events
+
+def test_books_cancel_maker_canceled_approval(tokens, books, maker, taker, turtle):
+
+    tokenA, tokenB = tokens[:2]
+    book_a, book_b = books
+
+    book_a.add_order(tokenA, 10, tokenB, 20, sender=maker)
+
+    tokenB.approve(book_b.address, 20, sender=taker)
+    tx = book_b.fill_order_on_book(0, book_a, sender=taker)
+
+    assert book_b.RemoteOrderFillCandidate(book_a.address, 0) in tx.events
+    assert book_b.RemoteOrderFillCanceled(book_a.address, 0) in tx.events

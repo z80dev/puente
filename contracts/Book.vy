@@ -139,10 +139,14 @@ def on_order_filled(
     if not order.active:
         Book(msg.sender).on_remote_fill_cancel(nonce, taker)
     else:
-        Book(msg.sender).on_remote_fill_confirm(nonce, taker)
-        assert order.asset.transferFrom(order.maker, taker, order.amount, default_return_value=True), "Failed to transfer asset token"
         self.orders[nonce].active = False
-        log OrderFilled(order.maker, taker, order.asset, order.amount, order.desired, order.desired_amount, nonce)
+        if self._safeTransfer(order.asset, order.maker, taker, order.amount):
+            Book(msg.sender).on_remote_fill_confirm(nonce, taker)
+            log OrderFilled(order.maker, taker, order.asset, order.amount, order.desired, order.desired_amount, nonce)
+        else:
+            # cancel, return desired token to taker
+            # leave order inactive since maker failed to keep up their end
+            Book(msg.sender).on_remote_fill_cancel(nonce, taker)
 
     return True
 
@@ -167,3 +171,36 @@ def on_remote_fill_cancel(
     # Transfer desired token back to taker
     assert order.desired.transfer(taker, order.desired_amount, default_return_value=True), "Failed to transfer desired token"
     log RemoteOrderFillCanceled(Book(msg.sender), nonce)
+
+
+
+# _safeTransfer will call transferFrom on the ERC20 contract
+# via raw_call, with revert_on_failure=False such that we can both
+# catch a revert as well as check the return value in case of no revert
+#
+# this function will return bool if the transfer was successful, false otherwise
+@internal
+def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -> bool:
+    success: bool = False
+    response: Bytes[32] = b'\x00'
+    success, response = raw_call(
+        token.address,
+        concat(
+            method_id("transferFrom(address,address,uint256)"),
+            convert(_from, bytes32),
+            convert(_to, bytes32),
+            convert(amount, bytes32)
+        ),
+        max_outsize=32,
+        revert_on_failure=False
+    )
+
+    if success:
+        return convert(response, bool)
+    else:
+        return False
+
+# external wrapper around _safeTransfer
+@external
+def safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -> bool:
+    return self._safeTransfer(token, _from, _to, amount)
