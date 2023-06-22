@@ -1,4 +1,6 @@
-# Layer Zero Vyper Examples
+# Puente: cross-chain liquidity exchange protocol
+
+Orders which offset each other would pay the taker a built-in rebate, because its as if they were acting as "solvers"
 
 This repository contains examples of Omnichain contracts implemented in Vyper.
 

@@ -1,3 +1,0 @@
-[submodule "contracts/snekmate"]
-	path = contracts/snekmate
-	url = git@github.com:pcaversaccio/snekmate.git
