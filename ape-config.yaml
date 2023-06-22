@@ -8,6 +8,10 @@ dependencies:
     github: OpenZeppelin/openzeppelin-contracts
     version: 4.9.2
 
+plugins:
+  - name: solidity
+  - name: vyper
+
 solidity:
   import_remapping:
     - "@layerzero=SolidityExamples/main"
