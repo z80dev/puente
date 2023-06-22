@@ -41,3 +41,8 @@ def books(project, deployer):
 @pytest.fixture
 def book(project, deployer):
     return project.Book.deploy(sender=deployer)
+
+@pytest.fixture
+def lz_mock(accounts, project):
+    lz_mock = project.EndpointMock.deploy(101, sender=accounts[0])
+    return lz_mock

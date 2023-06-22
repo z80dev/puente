@@ -39,11 +39,12 @@ def test_omnisetter(lz_mock, project, accounts):
     path2 = encode_packed(['address', 'address'], [lzapp.address, lzapp2.address])
     lzapp.setTrustedRemote(101, path, sender=accounts[0])
     lzapp2.setTrustedRemote(101, path2, sender=accounts[0])
-    # lzapp.setTrustedRemoteAddress(101, lzapp.address, sender=accounts[0])
     # embed to debug
     # IPython.embed()
     # print trusted remote address in hex
     assert lzapp.getTrustedRemoteAddress(101).hex() == '0x' + bytes.fromhex(lzapp2.address[2:]).hex()
 
     r = lzapp.incrementCounter(101, 5, sender=accounts[0], value=1000000000000000000)
+    print(r.events)
     assert lzapp2.counter() == 5
+    assert lzapp2.userCounter(accounts[0]) == 5
