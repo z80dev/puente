@@ -26,6 +26,8 @@ interface Book:
 
 implements: Book
 
+_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name)")
+
 event OrderAdded:
     maker: indexed(address)
     asset: ERC20
@@ -33,6 +35,52 @@ event OrderAdded:
     desired: ERC20
     desired_amount: uint256
     nonce: indexed(uint256)
+
+@view
+@internal
+def _hash_order(order: Order) -> bytes32:
+    domain_separator: bytes32 = keccak256(
+        _abi_encode(
+            _TYPE_HASH,
+            keccak256("Order"))
+        )
+
+    ORDER_TYPE_HASH: bytes32 = keccak256(
+        "Order(address maker,address asset,uint256 amount,address desired,uint256 desired_amount,uint256 nonce,bool active)"
+        )
+
+    struct_hash: bytes32 = keccak256(
+        _abi_encode(
+            ORDER_TYPE_HASH,
+            order.maker,
+            order.asset.address,
+            order.amount,
+            order.desired.address,
+            order.desired_amount,
+            order.nonce,
+            order.active
+        )
+        )
+
+    return keccak256(
+        concat(
+            b"\x19\x01",
+            domain_separator,
+            struct_hash))
+
+@view
+@external
+def hash_order(order: Order) -> bytes32:
+    return self._hash_order(order)
+
+@view
+@external
+def check_order_signature(order: Order, signature: Bytes[65], signer: address) -> bool:
+    # slice signature into v, r, s
+    v: uint256 = convert(slice(signature, 0, 1), uint256)
+    r: uint256 = convert(slice(signature, 1, 32), uint256)
+    s: uint256 = convert(slice(signature, 33, 32), uint256)
+    return ecrecover(self._hash_order(order), v, r, s) == signer
 
 event OrderCancelled:
     maker: indexed(address)
