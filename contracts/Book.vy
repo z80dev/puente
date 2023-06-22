@@ -1,4 +1,10 @@
 # @version ^0.3.9
+"""
+@title Order Book
+@custom:contract-name Book
+@license MIT
+@author z80
+"""
 
 from vyper.interfaces import ERC20
 
@@ -63,12 +69,22 @@ trusted_books: public(HashMap[Book, bool])
 
 @external
 def __init__():
+    """
+    @dev Initializes the contract by setting the sender
+         as the contract owner.
+    @notice Only executed once when the contract is deployed.
+    """
     self.owner = msg.sender
 
 @external
 def add_trusted_book(
     book: Book
 ):
+    """
+    @dev Adds a new Book instance to the list of trusted books.
+    @notice Only the owner of this contract can add a book.
+    @param book The instance of the Book contract.
+    """
     assert msg.sender == self.owner
     self.trusted_books[book] = True
 
@@ -79,6 +95,13 @@ def add_order(
     desired: ERC20,
     desired_amount: uint256,
 ):
+    """
+    @dev Adds a new order to the list of orders.
+    @param asset The token to be exchanged.
+    @param amount The amount of the asset token.
+    @param desired The token the maker desires in return.
+    @param desired_amount The amount of the desired token.
+    """
     order: Order = Order({
         maker: msg.sender,
         asset: asset,
@@ -96,6 +119,11 @@ def add_order(
 def cancel_order(
     nonce: uint256
 ):
+    """
+    @dev Cancels an active order.
+    @notice Only the maker of the order can cancel it.
+    @param nonce The unique identifier of the order.
+    """
     assert self.orders[nonce].maker == msg.sender, "Cannot cancel someone else's order"
     self.orders[nonce].active = False
     log OrderCancelled(msg.sender, nonce)
@@ -104,6 +132,11 @@ def cancel_order(
 def fill_order(
     nonce: uint256
 ):
+    """
+    @dev Fills an active order.
+    @notice The maker of the order cannot fill it.
+    @param nonce The unique identifier of the order.
+    """
     order: Order = self.orders[nonce]
     assert order.active, "Order is not active"
     assert order.maker != msg.sender, "Cannot fill your own order"
@@ -117,7 +150,13 @@ def fill_order_on_book(
     nonce: uint256,
     book: Book
 ):
-    print("fill_order_on_book", hardhat_compat=True)
+    """
+    @dev Fills an active order on a different Book.
+    @notice The maker of the order cannot fill it.
+            The book must be in the list of trusted books.
+    @param nonce The unique identifier of the order.
+    @param book The Book instance on which the order is filled.
+    """
     order: Order = book.orders(nonce)
     assert order.maker != msg.sender, "Cannot fill your own order"
     assert self.trusted_books[book], "Book is not trusted"
@@ -131,7 +170,13 @@ def on_order_filled(
     nonce: uint256,
     taker: address
 ) -> bool:
-    print("on_order_filled", hardhat_compat=True)
+    """
+    @dev Handles the event when an order is filled.
+    @notice Only trusted Books can call this method.
+    @param nonce The unique identifier of the order.
+    @param taker The address of the taker who fills the order.
+    @return bool Whether the fill was successful or not.
+    """
     assert self.trusted_books[Book(msg.sender)], "Book is not trusted"
 
     order: Order = self.orders[nonce]
@@ -155,6 +200,12 @@ def on_remote_fill_confirm(
         nonce: uint256,
         taker: address
 ):
+    """
+    @dev Confirms the fill of an order on a remote Book.
+    @notice Only trusted Books can call this method.
+    @param nonce The unique identifier of the order.
+    @param taker The address of the taker who filled the order.
+    """
     assert self.trusted_books[Book(msg.sender)], "Book is not trusted"
     order: Order = Book(msg.sender).orders(nonce)
     # Transfer desired token to maker
@@ -166,6 +217,12 @@ def on_remote_fill_cancel(
         nonce: uint256,
         taker: address
 ):
+    """
+    @dev Cancels the fill of an order on a remote Book.
+    @notice Only trusted Books can call this method.
+    @param nonce The unique identifier of the order.
+    @param taker The address of the taker who tried to fill the order.
+    """
     assert self.trusted_books[Book(msg.sender)], "Book is not trusted"
     order: Order = Book(msg.sender).orders(nonce)
     # Transfer desired token back to taker
@@ -174,13 +231,19 @@ def on_remote_fill_cancel(
 
 
 
-# _safeTransfer will call transferFrom on the ERC20 contract
-# via raw_call, with revert_on_failure=False such that we can both
-# catch a revert as well as check the return value in case of no revert
-#
-# this function will return bool if the transfer was successful, false otherwise
 @internal
 def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -> bool:
+    """
+    @dev Safely transfers `amount` tokens from `_from` to `_to` by
+         calling `transferFrom` on the ERC20 token contract.
+    @notice This method catches reverts and checks the return value
+            in case of no revert.
+    @param token The ERC20 token to be transferred.
+    @param _from The address from which the tokens are transferred.
+    @param _to The address to which the tokens are transferred.
+    @param amount The amount of tokens to be transferred.
+    @return bool Whether the transfer was successful or not.
+    """
     success: bool = False
     response: Bytes[32] = b'\x00'
     success, response = raw_call(
@@ -199,8 +262,3 @@ def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -
         return convert(response, bool)
     else:
         return False
-
-# external wrapper around _safeTransfer
-@external
-def safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -> bool:
-    return self._safeTransfer(token, _from, _to, amount)
