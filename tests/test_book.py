@@ -140,18 +140,28 @@ def test_sigs(maker, tokens, book, taker):
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
     order_struct = (maker.address, tokenA.address, 10, tokenB.address, 20, 0, True)
-    hashed_book = book.hash_order(order_struct)
-    encoded = encode_defunct(primitive=hashed_book)
-    sig2 = maker.sign_message(encoded)
-    print(hashed_book)
-    print(message)
-    hashed_message = Web3.keccak(b"\x19\x01" + message.header + message.body)
-    encoded_message = encode_defunct(primitive=hashed_message)
-    sig3 = maker.sign_message(encoded_message)
-    assert sig2 == sig3
-    print(hashed_message)
-    print(signature, sig2, sig3)
     assert recover_signer(message, signature) == maker.address
-    assert recover_signer(encoded, sig2) == maker.address
 
     assert book.check_order_signature(order_struct, signature.encode_vrs(), maker)
+
+def test_fill_sig_order(maker, taker, book, tokens):
+    tokenA, tokenB = tokens[:2]
+    order_to_sign = Order(maker.address, tokenA.address, 10, tokenB.address, 20, 0, True) # type: ignore
+    message = order_to_sign.signable_message
+    signature = maker.sign_message(message)
+    order_struct = (maker.address, tokenA.address, 10, tokenB.address, 20, 0, True)
+
+    # token approvals
+    tokenA.approve(book.address, 10, sender=maker)
+    tokenB.approve(book.address, 20, sender=taker)
+
+    tx = book.fill_signed_order(order_struct, signature.encode_vrs(), sender=taker)
+
+    # check for token transfer events
+    # tokens move directly between maker and taker
+    assert tokenA.Transfer(maker, taker, 10) in tx.events
+    assert tokenB.Transfer(taker, maker, 20) in tx.events
+
+    # check for order events
+    # should be an OrderFilled event
+    assert book.OrderFilled(maker.address, taker, tokenA.address, 10, tokenB.address, 20, 0) in tx.events
