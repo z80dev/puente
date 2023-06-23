@@ -26,8 +26,6 @@ interface Book:
 
 implements: Book
 
-_TYPE_HASH: constant(bytes32) = keccak256("EIP712Domain(string name)")
-
 event OrderAdded:
     maker: indexed(address)
     asset: ERC20
@@ -35,52 +33,6 @@ event OrderAdded:
     desired: ERC20
     desired_amount: uint256
     nonce: indexed(uint256)
-
-@view
-@internal
-def _hash_order(order: Order) -> bytes32:
-    domain_separator: bytes32 = keccak256(
-        _abi_encode(
-            _TYPE_HASH,
-            keccak256("Order"))
-        )
-
-    ORDER_TYPE_HASH: bytes32 = keccak256(
-        "Order(address maker,address asset,uint256 amount,address desired,uint256 desired_amount,uint256 nonce,bool active)"
-        )
-
-    struct_hash: bytes32 = keccak256(
-        _abi_encode(
-            ORDER_TYPE_HASH,
-            order.maker,
-            order.asset.address,
-            order.amount,
-            order.desired.address,
-            order.desired_amount,
-            order.nonce,
-            order.active
-        )
-        )
-
-    return keccak256(
-        concat(
-            b"\x19\x01",
-            domain_separator,
-            struct_hash))
-
-@view
-@external
-def hash_order(order: Order) -> bytes32:
-    return self._hash_order(order)
-
-@view
-@external
-def check_order_signature(order: Order, signature: Bytes[65], signer: address) -> bool:
-    # slice signature into v, r, s
-    v: uint256 = convert(slice(signature, 0, 1), uint256)
-    r: uint256 = convert(slice(signature, 1, 32), uint256)
-    s: uint256 = convert(slice(signature, 33, 32), uint256)
-    return ecrecover(self._hash_order(order), v, r, s) == signer
 
 event OrderCancelled:
     maker: indexed(address)
@@ -192,6 +144,23 @@ def fill_order(
     assert order.asset.transferFrom(order.maker, msg.sender, order.amount, default_return_value=True), "Failed to transfer asset token"
     self.orders[nonce].active = False
     log OrderFilled(order.maker, msg.sender, order.asset, order.amount, order.desired, order.desired_amount, nonce)
+
+@external
+def fill_signed_order(
+        order: Order,
+        signature: Bytes[65]
+):
+    """
+    @dev Fills an active signed order.
+    @notice The maker of the order cannot fill it.
+    @param order The order to be filled.
+    @param signature The signature of the order.
+    """
+    assert self._check_order_signature(order, signature, order.maker), "Invalid signature"
+    assert order.maker != msg.sender, "Cannot fill your own order"
+    assert order.desired.transferFrom(msg.sender, order.maker, order.desired_amount, default_return_value=True), "Failed to transfer desired token"
+    assert order.asset.transferFrom(order.maker, msg.sender, order.amount, default_return_value=True), "Failed to transfer asset token"
+    log OrderFilled(order.maker, msg.sender, order.asset, order.amount, order.desired, order.desired_amount, order.nonce)
 
 @external
 def fill_order_on_book(
@@ -310,3 +279,64 @@ def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -
         return convert(response, bool)
     else:
         return False
+
+################################################################
+#                EIP712 SIGNATURE VERIFICATION                 #
+################################################################
+
+_DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name)")
+
+@view
+@internal
+def _hash_order(order: Order) -> bytes32:
+
+    _DOMAIN_SEPARATOR: bytes32 = keccak256(
+        concat(
+            _DOMAIN_TYPEHASH,
+            keccak256("Order")
+        )
+    )
+
+    ORDER_TYPE_HASH: bytes32 = keccak256(
+        "Order(address maker,address asset,uint256 amount,address desired,uint256 desired_amount,uint256 nonce,bool active)"
+        )
+
+    struct_hash: bytes32 = keccak256(
+        _abi_encode(
+            ORDER_TYPE_HASH,
+            order.maker,
+            order.asset.address,
+            order.amount,
+            order.desired.address,
+            order.desired_amount,
+            order.nonce,
+            order.active
+        )
+        )
+
+    return keccak256(
+        concat(
+            b"\x19\x01",
+            _DOMAIN_SEPARATOR,
+            struct_hash))
+
+@view
+@external
+def check_order_signature(order: Order, signature: Bytes[65], signer: address) -> bool:
+    """
+    @dev Checks the signature of an order.
+    @param order The Order struct to be signed.
+    @param signature The signature of the order.
+    @param signer The address of the signer.
+    @return bool Whether the signature is valid or not.
+    """
+    return self._check_order_signature(order, signature, signer)
+
+@view
+@internal
+def _check_order_signature(order: Order, signature: Bytes[65], signer: address) -> bool:
+    # slice signature into v, r, s
+    v: uint256 = convert(slice(signature, 0, 1), uint256)
+    r: uint256 = convert(slice(signature, 1, 32), uint256)
+    s: uint256 = convert(slice(signature, 33, 32), uint256)
+    return ecrecover(self._hash_order(order), v, r, s) == signer
