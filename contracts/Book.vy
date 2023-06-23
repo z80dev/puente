@@ -8,6 +8,10 @@
 
 from vyper.interfaces import ERC20
 
+################################################################
+#                        ORDER STRUCTS                         #
+################################################################
+
 # may be used for on-chain orders to be placed by a smart contract
 struct Order:
     maker: address
@@ -20,17 +24,18 @@ struct Order:
 
 # Struct for XOrders (cross-domain orders)
 struct XOrder:
+    source_domain: uint256
+    target_domain: uint256
     maker: address
     asset: ERC20
     amount: uint256
     desired: ERC20
     desired_amount: uint256
     nonce: uint256
-    source_domain: uint256
-    target_domain: uint256
 
-# Mapping for canceled XOrders
-canceled_xorders: public(HashMap[uint256, uint256])
+################################################################
+#                          INTERFACES                          #
+################################################################
 
 interface Book:
     def fill_order(nonce: uint256): nonpayable
@@ -40,6 +45,10 @@ interface Book:
     def orders(nonce: uint256) -> Order: view
 
 implements: Book
+
+################################################################
+#                            EVENTS                            #
+################################################################
 
 event OrderAdded:
     maker: indexed(address)
@@ -74,15 +83,21 @@ event RemoteOrderFillCanceled:
     book: indexed(Book)
     nonce: indexed(uint256)
 
-current_nonce: public(uint256)
+################################################################
+#                       STATE VARIABLES                        #
+################################################################
 
-orders: public(HashMap[uint256, Order])
-
-owner: address
-
-trusted_books: public(HashMap[Book, bool])
-
+# Mapping for canceled XOrders
+owner: public(address)
 domain: public(immutable(uint256))
+trusted_books: public(HashMap[Book, bool])
+current_nonce: public(uint256)
+orders: public(HashMap[uint256, Order])
+canceled_xorders: public(HashMap[uint256, uint256])
+
+################################################################
+#                Constructor & Admin Functions                 #
+################################################################
 
 @external
 def __init__(_domain: uint256):
@@ -105,6 +120,10 @@ def add_trusted_book(
     """
     assert msg.sender == self.owner
     self.trusted_books[book] = True
+
+################################################################
+#             On-Chain Order Management Functions              #
+################################################################
 
 @external
 def add_order(
@@ -146,6 +165,10 @@ def cancel_order(
     self.orders[nonce].active = False
     log OrderCancelled(msg.sender, nonce)
 
+################################################################
+#                  Single-Book Order Filling                   #
+################################################################
+
 @external
 def fill_order(
     nonce: uint256
@@ -179,6 +202,10 @@ def fill_signed_order(
     assert order.desired.transferFrom(msg.sender, order.maker, order.desired_amount, default_return_value=True), "Failed to transfer desired token"
     assert order.asset.transferFrom(order.maker, msg.sender, order.amount, default_return_value=True), "Failed to transfer asset token"
     log OrderFilled(order.maker, msg.sender, order.asset, order.amount, order.desired, order.desired_amount, order.nonce)
+
+################################################################
+#                      Remote Book Orders                      #
+################################################################
 
 @external
 def fill_order_on_book(
@@ -264,7 +291,9 @@ def on_remote_fill_cancel(
     assert order.desired.transfer(taker, order.desired_amount, default_return_value=True), "Failed to transfer desired token"
     log RemoteOrderFillCanceled(Book(msg.sender), nonce)
 
-
+################################################################
+#                            Utils                             #
+################################################################
 
 @internal
 def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -> bool:
