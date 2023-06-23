@@ -31,8 +31,8 @@ def turtle(accounts):
 
 @pytest.fixture
 def books(project, deployer):
-    bookA = project.Book.deploy(sender=deployer)
-    bookB = project.Book.deploy(sender=deployer)
+    bookA = project.Book.deploy(1, sender=deployer)
+    bookB = project.Book.deploy(2, sender=deployer)
     bookA.add_trusted_book(bookB, sender=deployer)
     bookB.add_trusted_book(bookA, sender=deployer)
     return [bookA, bookB]
@@ -40,7 +40,7 @@ def books(project, deployer):
 # define fixture for book contract
 @pytest.fixture
 def book(project, deployer):
-    return project.Book.deploy(sender=deployer)
+    return project.Book.deploy(0, sender=deployer)
 
 @pytest.fixture
 def lz_mock(accounts, project):

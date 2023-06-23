@@ -8,6 +8,7 @@
 
 from vyper.interfaces import ERC20
 
+# may be used for on-chain orders to be placed by a smart contract
 struct Order:
     maker: address
     asset: ERC20
@@ -16,6 +17,20 @@ struct Order:
     desired_amount: uint256
     nonce: uint256
     active: bool
+
+# Struct for XOrders (cross-domain orders)
+struct XOrder:
+    maker: address
+    asset: ERC20
+    amount: uint256
+    desired: ERC20
+    desired_amount: uint256
+    nonce: uint256
+    source_domain: uint256
+    target_domain: uint256
+
+# Mapping for canceled XOrders
+canceled_xorders: public(HashMap[uint256, uint256])
 
 interface Book:
     def fill_order(nonce: uint256): nonpayable
@@ -67,14 +82,17 @@ owner: address
 
 trusted_books: public(HashMap[Book, bool])
 
+domain: public(immutable(uint256))
+
 @external
-def __init__():
+def __init__(_domain: uint256):
     """
     @dev Initializes the contract by setting the sender
          as the contract owner.
     @notice Only executed once when the contract is deployed.
     """
     self.owner = msg.sender
+    domain = _domain
 
 @external
 def add_trusted_book(
