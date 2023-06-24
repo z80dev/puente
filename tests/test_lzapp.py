@@ -4,11 +4,6 @@ from eth_abi.packed import encode_packed
 # import ipython to embed
 import IPython
 
-@pytest.fixture
-def lz_mock(accounts, project):
-    lz_mock = project.EndpointMock.deploy(101, sender=accounts[0])
-    return lz_mock
-
 def test_omnicounter(lz_mock, project, accounts):
     lzapp = project.OmniCounter.deploy(lz_mock, sender=accounts[0])
     lzapp2 = project.OmniCounter.deploy(lz_mock, sender=accounts[0])

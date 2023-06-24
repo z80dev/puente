@@ -331,16 +331,21 @@ def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -
 #                EIP712 SIGNATURE VERIFICATION                 #
 ################################################################
 
-_DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name)")
+# _DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+# _DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId)")
+_DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version)")
 
 @view
 @internal
 def _hash_order(order: Order) -> bytes32:
 
     _DOMAIN_SEPARATOR: bytes32 = keccak256(
-        concat(
+        _abi_encode(
             _DOMAIN_TYPEHASH,
-            keccak256("Order")
+            keccak256("Order"),
+            keccak256("1.0"),
+            # domain,
+            # self
         )
     )
 
@@ -368,6 +373,46 @@ def _hash_order(order: Order) -> bytes32:
             struct_hash))
 
 @view
+@internal
+def _hash_xorder(order: XOrder) -> bytes32:
+
+    _DOMAIN_SEPARATOR: bytes32 = keccak256(
+        _abi_encode(
+            _DOMAIN_TYPEHASH,
+            keccak256("XOrder"),
+            keccak256("1.0"),
+            # domain,
+            # self
+        )
+    )
+
+
+    XORDER_TYPE_HASH: bytes32 = keccak256(
+        "XOrder(uint256 source_domain,uint256 target_domain,address maker,address asset,uint256 amount,address desired,uint256 desired_amount,uint256 nonce)"
+        )
+
+    struct_hash: bytes32 = keccak256(
+        _abi_encode(
+            XORDER_TYPE_HASH,
+            order.source_domain,
+            order.target_domain,
+            order.maker,
+            order.asset.address,
+            order.amount,
+            order.desired.address,
+            order.desired_amount,
+            order.nonce
+        )
+        )
+
+    return keccak256(
+        concat(
+            b"\x19\x01",
+            _DOMAIN_SEPARATOR,
+            struct_hash))
+
+
+@view
 @external
 def check_order_signature(order: Order, signature: Bytes[65], signer: address) -> bool:
     """
@@ -387,3 +432,37 @@ def _check_order_signature(order: Order, signature: Bytes[65], signer: address) 
     r: uint256 = convert(slice(signature, 1, 32), uint256)
     s: uint256 = convert(slice(signature, 33, 32), uint256)
     return ecrecover(self._hash_order(order), v, r, s) == signer
+
+
+@view
+@external
+def check_xorder_signature(order: XOrder, signature: Bytes[65], signer: address) -> bool:
+    """
+    @dev Checks the signature of an order.
+    @param order The Order struct to be signed.
+    @param signature The signature of the order.
+    @param signer The address of the signer.
+    @return bool Whether the signature is valid or not.
+    """
+    return self._check_xorder_signature(order, signature, signer)
+
+@view
+@internal
+def _check_xorder_signature(order: XOrder, signature: Bytes[65], signer: address) -> bool:
+    # slice signature into v, r, s
+    v: uint256 = convert(slice(signature, 0, 1), uint256)
+    r: uint256 = convert(slice(signature, 1, 32), uint256)
+    s: uint256 = convert(slice(signature, 33, 32), uint256)
+    return ecrecover(self._hash_xorder(order), v, r, s) == signer
+
+@view
+@external
+def validate_xorder(order: XOrder, signature: Bytes[65]) -> bool:
+    return self._validate_xorder(order, signature)
+
+@view
+@internal
+def _validate_xorder(order: XOrder, signature: Bytes[65]) -> bool:
+    if not order.target_domain == domain:
+        return False
+    return self._check_xorder_signature(order, signature, order.maker)

@@ -126,6 +126,9 @@ def test_books_cancel_maker_canceled_approval(tokens, books, maker, taker, turtl
 
 class Order(EIP712Message):
     _name_: "string" = "Order" # type: ignore
+    _version_: "string" = "1.0" # type: ignore
+    # _chainId_: "uint256" = 0 # type: ignore
+    # _verifyingContract_: "address" = "0xe65016D97897393a7A104E4c6Eb20bA8D4aCf1E9" # type: ignore
     maker: "address" # type: ignore
     asset: "address" # type: ignore
     amount: "uint256" # type: ignore
@@ -134,15 +137,43 @@ class Order(EIP712Message):
     nonce: "uint256" # type: ignore
     active: "bool" # type: ignore
 
-def test_sigs(maker, tokens, book, taker):
+class XOrder(EIP712Message):
+    _name_: "string" = "XOrder" # type: ignore
+    _version_: "string" = "1.0" # type: ignore
+    source_domain: "uint256" # type: ignore
+    target_domain: "uint256" # type: ignore
+    maker: "address" # type: ignore
+    asset: "address" # type: ignore
+    amount: "uint256" # type: ignore
+    desired: "address" # type: ignore
+    desired_amount: "uint256" # type: ignore
+    nonce: "uint256" # type: ignore
+
+def test_order_sigs(maker, tokens, book, taker):
     tokenA, tokenB = tokens[:2]
     order_to_sign = Order(maker.address, tokenA.address, 10, tokenB.address, 20, 0, True) # type: ignore
+    assert book.domain() == 0
+    # order_to_sign._chainId_ = book.domain()
+    # order_to_sign._verifyingContract_ = book.address
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
     order_struct = (maker.address, tokenA.address, 10, tokenB.address, 20, 0, True)
     assert recover_signer(message, signature) == maker.address
 
     assert book.check_order_signature(order_struct, signature.encode_vrs(), maker)
+
+def test_xorder_sigs(maker, tokens, book, taker):
+    tokenA, tokenB = tokens[:2]
+    order_to_sign = XOrder(0, 1, maker.address, tokenA.address, 10, tokenB.address, 20, 0) # type: ignore
+    # order_to_sign._chainId_ = book.domain()
+    # order_to_sign._verifyingContract_ = book.address
+    print(order_to_sign)
+    message = order_to_sign.signable_message
+    signature = maker.sign_message(message)
+    order_struct = (0, 1, maker.address, tokenA.address, 10, tokenB.address, 20, 0)
+    assert recover_signer(message, signature) == maker.address
+
+    assert book.check_xorder_signature(order_struct, signature.encode_vrs(), maker)
 
 def test_fill_sig_order(maker, taker, book, tokens):
     tokenA, tokenB = tokens[:2]
@@ -165,3 +196,21 @@ def test_fill_sig_order(maker, taker, book, tokens):
     # check for order events
     # should be an OrderFilled event
     assert book.OrderFilled(maker.address, taker, tokenA.address, 10, tokenB.address, 20, 0) in tx.events
+
+def test_validate_xorder(maker, taker, books, tokens):
+    tokenA, tokenB = tokens[:2]
+    book_a, book_b = books
+    order_to_sign = XOrder(1, 2, maker.address, tokenA.address, 10, tokenB.address, 20, 0) # type: ignore
+    message = order_to_sign.signable_message
+    signature = maker.sign_message(message)
+    order_struct = (1, 2, maker.address, tokenA.address, 10, tokenB.address, 20, 0)
+
+    # Check we can validate a valid xorder
+    assert book_b.validate_xorder(order_struct, signature.encode_vrs())
+
+    # Check that we reject an xorder signed by anyone but the maker
+    imposter_signature = taker.sign_message(message)
+    assert not book_b.validate_xorder(order_struct, imposter_signature.encode_vrs())
+
+    # Check that we reject an xorder with a different target domain
+    assert not book_a.validate_xorder(order_struct, signature.encode_vrs())
