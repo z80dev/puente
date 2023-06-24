@@ -331,9 +331,7 @@ def _safeTransfer(token: ERC20, _from: address, _to: address, amount: uint256) -
 #                EIP712 SIGNATURE VERIFICATION                 #
 ################################################################
 
-# _DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
-# _DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId)")
-_DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version)")
+_DOMAIN_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
 
 @view
 @internal
@@ -344,8 +342,8 @@ def _hash_order(order: Order) -> bytes32:
             _DOMAIN_TYPEHASH,
             keccak256("Order"),
             keccak256("1.0"),
-            # domain,
-            # self
+            chain.id,
+            self
         )
     )
 
@@ -381,8 +379,8 @@ def _hash_xorder(order: XOrder) -> bytes32:
             _DOMAIN_TYPEHASH,
             keccak256("XOrder"),
             keccak256("1.0"),
-            # domain,
-            # self
+            chain.id,
+            self
         )
     )
 

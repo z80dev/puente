@@ -153,8 +153,8 @@ def test_order_sigs(maker, tokens, book, taker):
     tokenA, tokenB = tokens[:2]
     order_to_sign = Order(maker.address, tokenA.address, 10, tokenB.address, 20, 0, True) # type: ignore
     assert book.domain() == 0
-    # order_to_sign._chainId_ = book.domain()
-    # order_to_sign._verifyingContract_ = book.address
+    order_to_sign._chainId_ = 31337
+    order_to_sign._verifyingContract_ = book.address
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
     order_struct = (maker.address, tokenA.address, 10, tokenB.address, 20, 0, True)
@@ -165,8 +165,8 @@ def test_order_sigs(maker, tokens, book, taker):
 def test_xorder_sigs(maker, tokens, book, taker):
     tokenA, tokenB = tokens[:2]
     order_to_sign = XOrder(0, 1, maker.address, tokenA.address, 10, tokenB.address, 20, 0) # type: ignore
-    # order_to_sign._chainId_ = book.domain()
-    # order_to_sign._verifyingContract_ = book.address
+    order_to_sign._chainId_ = 31337
+    order_to_sign._verifyingContract_ = book.address
     print(order_to_sign)
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
@@ -178,6 +178,8 @@ def test_xorder_sigs(maker, tokens, book, taker):
 def test_fill_sig_order(maker, taker, book, tokens):
     tokenA, tokenB = tokens[:2]
     order_to_sign = Order(maker.address, tokenA.address, 10, tokenB.address, 20, 0, True) # type: ignore
+    order_to_sign._chainId_ = 31337
+    order_to_sign._verifyingContract_ = book.address
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
     order_struct = (maker.address, tokenA.address, 10, tokenB.address, 20, 0, True)
@@ -201,6 +203,8 @@ def test_validate_xorder(maker, taker, books, tokens):
     tokenA, tokenB = tokens[:2]
     book_a, book_b = books
     order_to_sign = XOrder(1, 2, maker.address, tokenA.address, 10, tokenB.address, 20, 0) # type: ignore
+    order_to_sign._chainId_ = 31337
+    order_to_sign._verifyingContract_ = book_b.address
     message = order_to_sign.signable_message
     signature = maker.sign_message(message)
     order_struct = (1, 2, maker.address, tokenA.address, 10, tokenB.address, 20, 0)
